@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>海南岛生物多样性可视化系统</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.21/esri/themes/light/main.css">
+    <script src="https://js.arcgis.com/4.21/"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        html, body, #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+        #infoDiv {
+            position: absolute;
+            bottom: 70px; /* 在图例上方 */
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+            text-align: center;
+            max-width: 286px; /* 限制宽度 */
+            max-height: 100px; /* 限制高度 */
+            overflow-y: auto; /* 超出高度时显示滚动条 */
+        }
+    </style>
+</head>
+<body>
+<div id="header">海南岛生物多样性与空间关系判断可视化系统</div>
+<div id="viewDiv" ></div>
+<div id="infoDiv">拓扑关系：<span id="topologyInfo">无</span></div>
+<div id="legend-container">
+    <div id="legend-label">生物多样性</div>
+    <div id="legend-bar"></div>
+    <div id="legend-high">高</div>
+    <div id="legend-low">低</div>
+</div>
+<div id="relationshipMenu">
+    <h3>拓扑关系</h3>
+    <ul>
+        <li id="menuEquals">相等 (Equals)</li>
+        <li id="menuContains">包含 (Contains)</li>
+        <li id="menuWithin">被包含 (Within)</li>
+        <li id="menuIntersects">相交 (Intersects)</li>
+        <li id="menuOverlaps">重叠 (Overlaps)</li>
+        <li id="menuTouches">接触 (Touches)</li>
+        <li id="menuDisjoint">相离 (Disjoint)</li>
+    </ul>
+</div>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap'); /* 引入艺术字体 */
+
+    #header {
+        position: absolute; /* 覆盖在地图上 */
+        top: 10px; /* 靠近页面顶部 */
+        left: 50%;
+        transform: translateX(-50%); /* 居中对齐 */
+        background: linear-gradient(to right, #4CAF50, #87CEEB); /* 渐变背景 */
+        color: white; /* 字体颜色 */
+        font-family: 'Pacifico', cursive; /* 应用艺术字体 */
+        font-size: 22px; /* 字体大小 */
+        padding: 10px 20px; /* 增加内边距 */
+        border-radius: 15px; /* 圆角背景 */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* 添加阴影 */
+        z-index: 1000; /* 置于地图层之上 */
+        text-align: center;
+        opacity: 0.8; /* 半透明效果 */
+    }
+
+</style>
+
+<script>
+    require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/layers/GraphicsLayer",
+        "esri/widgets/Sketch",
+        "esri/geometry/geometryEngine",
+        "esri/layers/FeatureLayer",
+        "esri/renderers/HeatmapRenderer",
+        "esri/widgets/Legend",
+        "esri/widgets/ScaleBar",
+        "esri/widgets/Compass",
+        "esri/widgets/AreaMeasurement2D",
+        "esri/widgets/Home",
+        "esri/widgets/Search",
+        "esri/tasks/Locator"
+    ], function (Map, MapView, GraphicsLayer, Sketch, geometryEngine, FeatureLayer, HeatmapRenderer, Legend, ScaleBar, Compass, AreaMeasurement2D, Home, Search, Locator) {
+
+        // 创建地图
+        var map = new Map({
+            basemap: 'osm'
+        });
+
+        // 创建视图
+        var view = new MapView({
+            container: "viewDiv",
+            map: map,
+            zoom: 8,
+            center: [109.5, 19] // 海南岛的中心点经纬度
+        });
+
+        // 热力图数据
+        var heatMapData = [];
+        for (var i = 0; i < 1000; i++) {
+            var lat = 18.2 + Math.random() * 1.8; // 随机生成纬度
+            var lon = 108.5 + Math.random() * 2.4; // 随机生成经度
+            var intensity = Math.random() * 2.5; // 随机生成强度
+
+            heatMapData.push({
+                geometry: {
+                    type: "point",
+                    latitude: lat,
+                    longitude: lon
+                },
+                attributes: {
+                    intensity: intensity
+                }
+            });
+        }
+
+        // 创建热力图层
+        var featureLayer = new FeatureLayer({
+            fields: [{
+                name: "intensity",
+                alias: "Intensity",
+                type: "double"
+            }],
+            objectIdField: "ObjectID",
+            geometryType: "point",
+            spatialReference: {
+                wkid: 4326
+            },
+            source: heatMapData,
+            renderer: new HeatmapRenderer({
+                field: "intensity",
+                blurRadius: 10,
+                colorStops: [
+                    { ratio: 0, color: "rgba(255, 255, 255, 0)" },
+                    { ratio: 0.2, color: "rgba(255, 255, 0, 0.3)" },
+                    { ratio: 0.5, color: "rgba(255, 0, 0, 0.6)" },
+                    { ratio: 0.8, color: "rgba(0, 0, 255, 0.9)" }
+                ]
+            })
+        });
+        map.add(featureLayer);
+
+
+
+        // 比例尺
+        var scaleBar = new ScaleBar({
+            view: view,
+            unit: "dual"
+        });
+        view.ui.add(scaleBar, { position: "bottom-left" });
+
+        // 指南针
+        var compass = new Compass({ view: view });
+        view.ui.add(compass, { position: "top-left" });
+
+        // 面积测量工具
+        var areaMeasurementWidget = new AreaMeasurement2D({ view: view });
+        view.ui.add(areaMeasurementWidget, { position: "top-right", index: 3 });
+
+        // Home 按钮
+        var homeBtn = new Home({ view: view });
+        view.ui.add(homeBtn, "top-left");
+
+        // 创建一个容器用于搜索框布局
+        var searchContainer = document.createElement("div");
+        searchContainer.style.display = "flex";
+        searchContainer.style.alignItems = "center";
+        searchContainer.style.gap = "10px";
+        searchContainer.style.background = "white";
+        searchContainer.style.padding = "8px";
+        searchContainer.style.borderRadius = "8px";
+        searchContainer.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.2)";
+        searchContainer.style.position = "absolute";
+        searchContainer.style.top = "18px";
+        searchContainer.style.left = "55px";
+        searchContainer.style.zIndex = "1000";
+        document.body.appendChild(searchContainer);
+
+        // 搜索框
+        var searchWidget = new Search({
+        view: view,
+        sources: [{
+            locator: new Locator({ url: "//geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer" }),
+            singleLineFieldName: "SingleLine",
+            name: "搜索",
+            placeholder: "请输入关键字",
+            maxResults: 3,
+            maxSuggestions: 6
+        }],
+        container: searchContainer // 将搜索框放入自定义容器中
+    });
+
+        // 图形绘制图层
+        var graphicsLayer = new GraphicsLayer();
+        map.add(graphicsLayer);
+
+       // Sketch 工具
+        var sketch = new Sketch({
+            layer: graphicsLayer,
+            view: view,
+            creationMode: "update"
+        });
+        view.ui.add(sketch, { position: "top-right", index: 1 });
+
+        // 拓扑关系更新
+        sketch.on("create", function (event) {
+            if (event.state === "complete") {
+                updateTopologyInfo();
+            }
+        });
+
+        sketch.on("update", function (event) {
+            if (event.state === "complete") {
+                updateTopologyInfo();
+            }
+        });
+
+    // 更新拓扑关系信息
+    function updateTopologyInfo() {
+        var graphics = graphicsLayer.graphics.items;
+        if (graphics.length < 2) {
+        document.getElementById("topologyInfo").innerText = "需要至少两个图形";
+        return;
+        }
+
+    var topologyInfo = [];
+    for (var i = 0; i < graphics.length; i++) {
+        for (var j = i + 1; j < graphics.length; j++) {
+            var g1 = graphics[i].geometry;
+            var g2 = graphics[j].geometry;
+
+            // 判断七种拓扑关系
+            if (geometryEngine.equals(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}与图形${j + 1}相等`);
+            } else if (geometryEngine.contains(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}包含图形${j + 1}`);
+            } else if (geometryEngine.within(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}被图形${j + 1}包含`);
+            } else if (geometryEngine.overlaps(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}与图形${j + 1}重叠`);
+            } else if (geometryEngine.intersects(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}与图形${j + 1}相交`);
+            } else if (geometryEngine.disjoint(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}与图形${j + 1}相离`);
+            } else if (geometryEngine.touches(g1, g2)) {
+                topologyInfo.push(`图形${i + 1}与图形${j + 1}相接`);
+            } else {
+                topologyInfo.push(`图形${i + 1}与图形${j + 1}无明确关系`);
+            }
+
+        }
+    }
+
+    // 更新拓扑信息显示
+    document.getElementById("topologyInfo").innerText = topologyInfo.join("; ");
+    }
+    function updateMenuStatus(relation) {
+    var menuItems = document.querySelectorAll("#relationshipMenu li");
+    menuItems.forEach(item => item.classList.remove("active"));
+
+    var relationMap = {
+        equals: "menuEquals",
+        contains: "menuContains",
+        within: "menuWithin",
+        intersects: "menuIntersects",
+        overlaps: "menuOverlaps",
+        touches: "menuTouches",
+        disjoint: "menuDisjoint"
+    };
+
+    if (relationMap[relation]) {
+        document.getElementById(relationMap[relation]).classList.add("active");
+    }
+}
+
+    // 检测两图形之间的关系
+    function detectRelationship() {
+    var graphics = graphicsLayer.graphics.items;
+    if (graphics.length < 2) return;
+
+    var g1 = graphics[0].geometry;
+    var g2 = graphics[1].geometry;
+
+    if (geometryEngine.equals(g1, g2)) {
+        updateMenuStatus("equals");
+    } else if (geometryEngine.contains(g1, g2)) {
+        updateMenuStatus("contains");
+    } else if (geometryEngine.within(g1, g2)) {
+        updateMenuStatus("within");
+    } else if (geometryEngine.overlaps(g1, g2)) {
+        updateMenuStatus("overlaps");
+    } else if (geometryEngine.intersects(g1, g2)) {
+        updateMenuStatus("intersects");
+    } else if (geometryEngine.touches(g1, g2)) {
+        updateMenuStatus("touches");
+    } else if (geometryEngine.disjoint(g1, g2)) {
+        updateMenuStatus("disjoint");
+    }
+}
+
+    // 绑定事件
+    sketch.on("create", function (event) {
+    if (event.state === "complete") detectRelationship();
+    });
+
+    sketch.on("update", function (event) {
+    if (event.state === "complete") detectRelationship();
+    });
+});
+
+</script>
+</body>
+</html>
